@@ -1,16 +1,31 @@
 name: manage-issue
 
 on:
-  issues:
-    types: [opened, edited]
+  workflow_call:
+    # Variables passed from the caller
+    inputs:
+      target-org:
+        required: true
+        type: string
+      log-level:
+        required: false
+        type: string
+        default: 'debug'
 
 jobs:
   check-repro:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v8
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
+          env:
+            TARGET_ORG: ${{ inputs.target-org }}
           script: |
+            // Access variables via process.env
+            const targetOrg = process.env.TARGET_ORG;
+
+            core.info(`Target Organization: ${targetOrg}`);
+
             const URL_REGEXP = /### Reproduction repository \(issue will be closed if this is not valid\)[\r\n]+([^#]+)###/m
             const REPRO_STEPS_REGEXP = /### Steps to reproduce[\r\n]+([^#]+)###/m
             const LABEL_NEEDS_MORE_INFORMATION = 'needs more info'
@@ -159,8 +174,7 @@ jobs:
                 Hey @${user}! We're sorry to hear that you've hit this issue.
             `.trim()
 
-            const NO_REPRO_URL = ((! url) || (! url.includes('https://github.com/')) || (url.includes('https://github.com/laragear'))))
-            const NO_REPRO_STEPS = reproSteps.length < 25
+            const NO_REPRO_URL = (!url || !url.includes('https://github.com/') || url.includes(`https://github.com/${targetOrg}`));            const NO_REPRO_STEPS = reproSteps.length < 25
 
             if (NO_REPRO_URL || NO_REPRO_STEPS) {
                 let comment = `
