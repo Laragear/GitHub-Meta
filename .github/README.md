@@ -32,3 +32,21 @@ jobs:
       target-org: 'Laragear'
       # log-level: 'verbose'            # Only required if you need debugging.
 ```
+
+# How to add `dependabot`
+
+```yaml
+version: 2
+updates:
+- package-ecosystem: "composer"
+  directory: "/"
+  schedule:
+    interval: "daily"
+    time: "09:00"
+    timezone: "America/Santiago"
+  open-pull-requests-limit: 2
+  groups:
+    php-dependencies:
+      patterns:
+        - "*" # Groups all action updates into one PR to avoid noise
+```
