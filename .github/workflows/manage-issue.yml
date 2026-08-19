@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          TARGET_ORG: ${{ inputs.target-org }}
         with:
-          env:
-            TARGET_ORG: ${{ inputs.target-org }}
           script: |
             // Access variables via process.env
             const targetOrg = process.env.TARGET_ORG;
