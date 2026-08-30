@@ -8,10 +8,15 @@ name: Tests - PHP 8.5 - PHPUnit
 on:
   workflow_call:                  # ← This makes it callable from any other repo
     inputs:
-      laravel_constraint_min:
-        description: Minimum Laravel version constraint
+      php_versions:
+        description: 'JSON array of PHP versions to test'
         required: false
-        default: "12.*"
+        default: '["8.3", "8.4", "8.5"]'
+        type: string
+      laravel_versions:
+        description: 'JSON array of Laravel version constraints to test'
+        required: false
+        default: '["12.*", "13.*"]'
         type: string
       expected_files:
         description: 'Comma-separated list of expected exported files'
@@ -35,7 +40,7 @@ jobs:
       - name: Check file permissions
         run: |
           test $(find . -type f -not -path './.git/*' -executable) ==
-      - name: Find non-printable ASCII characters
+      - name: Find non-printable ASCII characters on PHP files.
         run: |
           ! LC_ALL=C.UTF-8 find ./src -type f -name *.php -print0 | xargs -0 -- grep -PHn [^ -~]
 
@@ -65,16 +70,11 @@ jobs:
       - syntax_errors
     runs-on: ubuntu-latest
     env:
-      EXPORT_EXPECTED: ${{ inputs.export_expected }}
+      EXPORT_EXPECTED: ${{ inputs.expected_files }}
     strategy:
       matrix:
-        php-version:
-          - 8.3
-          - 8.4
-          - 8.5
-        laravel-constraint:
-          - "${{ inputs.laravel_constraint_min }}"
-          - 13.*
+        php-version: ${{ fromJson(inputs.php_versions) }}
+        laravel-constraint: ${{ fromJson(inputs.laravel_versions) }}
         dependencies:
           - lowest
           - highest
