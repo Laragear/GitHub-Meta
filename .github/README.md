@@ -1,4 +1,6 @@
-# How to call the PHP Testing Workflow:
+# PHP
+
+## How to call the PHP Testing Workflow:
 
 ```yaml
 on:
@@ -25,7 +27,35 @@ jobs:
     secrets: inherit                        # Required to pass org-wide secrets like CODECOV_TOKEN.
 ```
 
-# How to call the issue orchestrator
+# Node
+
+## How to call Node Testing Workflow
+
+```yaml
+on:
+  push:
+    branches:
+      - "*.x"                               # Only run when pushing to a core branch.
+  pull_request:
+    types: [opened, synchronize, reopened]  # Only run on PRs.
+
+jobs:
+  test:
+    name: Testing with Node
+    uses: Laragear/GitHub-Meta/.github/workflows/test-node-package.yml@main
+    with:
+      # Optional: Override the default Node.js versions (Defaults to '["22", "24"]')
+      # node_versions: '["22"]'
+      
+      # Optional: Override exported files check (Defaults to 'LICENSE.md,README.md,package.json')
+      # expected_files: 'LICENSE.md,README.md,package.json,CHANGELOG.md'
+    
+    secrets: inherit
+```
+
+# General
+
+## How to call the issue orchestrator
 
 ```yaml
 on:
@@ -54,6 +84,18 @@ updates:
   open-pull-requests-limit: 2
   groups:
     php-dependencies:
+      patterns:
+        - "*" # Groups all action updates into one PR to avoid noise
+
+- package-ecosystem: "npm"
+  directory: "/"
+  schedule:
+    interval: "daily"
+    time: "09:00"
+    timezone: "America/Santiago"
+  open-pull-requests-limit: 2
+  groups:
+    node-dependencies:
       patterns:
         - "*" # Groups all action updates into one PR to avoid noise
 ```
