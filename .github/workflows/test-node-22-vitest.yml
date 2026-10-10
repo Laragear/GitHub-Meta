@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow
+
+name: Tests - Node 22+ - Package
+
+# ──────────────────────────────────────────────────────────────
+# 1. MAKE IT REUSABLE + CENTRALIZED
+# ──────────────────────────────────────────────────────────────
+on:
+  workflow_call:                  # ← This makes it callable from any other repo
+    inputs:
+      node_versions:
+        description: 'JSON array of Node.js versions to test'
+        required: false
+        default: '["22", "24"]'
+        type: string
+      expected_files:
+        description: 'Comma-separated list of expected exported files'
+        type: string
+        required: false
+        default: 'LICENSE.md,README.md,package.json'
+    secrets:
+      CODECOV_TOKEN:
+        description: 'Codecov token for coverage upload'
+        required: true
+
+jobs:
+
+  byte_level:
+    name: 0️⃣ Byte-level
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Check file permissions
+        run: |
+          test $(find . -type f -not -path './.git/*' -executable) ==
+      - name: Find non-printable ASCII characters on JS/TS files.
+        run: |
+          ! LC_ALL=C.UTF-8 find ./src -type f \( -name *.js -or -name *.ts -or -name *.jsx -or -name *.tsx \) -print0 | xargs -0 -- grep -PHn [^ -~]
+
+  syntax_errors:
+    name: 1️⃣ Syntax errors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: latest
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate package configuration
+        run: npm pkg get name version > /dev/null
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check source code for lint errors
+        run: npm run lint
+
+  unit_tests:
+    name: 2️⃣ Unit and Feature tests
+    needs:
+      - byte_level
+      - syntax_errors
+    runs-on: ubuntu-latest
+    env:
+      EXPORT_EXPECTED: ${{ inputs.expected_files }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ${{ fromJson(inputs.node_versions) }}
+        dependencies:
+          - lowest
+          - highest
+    steps:
+      - name: Prepare node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install dependencies
+        run: |
+          # npm has no native "--prefer-lowest"; emulate it by resolving the
+          # minimum version of every declared dependency.
+          rm -f package-lock.json
+          if [ "${{ matrix.dependencies }}" == "lowest" ]; then
+            LOWEST=$(node -p "Object.entries({ ...require('./package.json').dependencies, ...require('./package.json').devDependencies }).map(([name, range]) => name + '@' + range.replace(/^[\^~><= ]+/, '')).join(' ')")
+            echo Installing: ${LOWEST}
+            npm install ${LOWEST}
+          else
+            npm install
+          fi
+
+      - name: Execute unit tests
+        run: npm run test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: ${{ github.repository }}
+
+  static_analysis:
+    name: 3️⃣ Static Analysis
+    needs:
+      - byte_level
+      - syntax_errors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: latest
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Execute static analysis
+        run: npm run check
+
+  exported_files:
+    name: 4️⃣ Exported files
+    needs:
+      - byte_level
+      - syntax_errors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Check exported files
+        run: |
+          EXPECTED="${{ inputs.expected_files }}"
+          CURRENT=$(git archive HEAD | tar --list --exclude=src --exclude=src/* --exclude=tests --exclude=tests/* --exclude=test --exclude=test/* --exclude=types --exclude=types/* --exclude=dist --exclude=dist/* --exclude=lib --exclude=lib/* --exclude=coverage --exclude=coverage/* --exclude=examples --exclude=examples/* --exclude=.github --exclude=.github/* | paste -s -d ,)
+          echo CURRENT =${CURRENT}
+          echo EXPECTED=${EXPECTED}
+          test "${CURRENT}" == "${EXPECTED}"
